@@ -80,8 +80,8 @@ public class User {
     @Column(name = "updated_time")
     private LocalDateTime updatedTime = LocalDateTime.now();
 
-    // 添加avatar字段
-    @Column(length = 255)
+    // 添加avatar字段，增加长度以支持更长的存储路径
+    @Column(length = 1024)
     private String avatar;
 
     public enum UserRole {

@@ -160,69 +160,70 @@ public class UserController {
     }
 
     /**
-     * 上传或更新当前用户头像
+     * 上传临时头像（为新增用户准备）
      * 路径：/api/users/avatar
+     * 等同于 /api/users//avatar (userId为空)
      */
     @PostMapping("/avatar")
-    public ResponseEntity<?> uploadCurrentUserAvatar(
+    public ResponseEntity<?> uploadTemporaryAvatar(
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
         try {
-            // 注意：由于这是一个简化实现，没有获取当前登录用户的逻辑
-            // 在实际应用中，应该从token或session中获取当前登录用户的ID
-            // 这里我们返回一个错误，提示需要提供用户ID
-            return new ResponseEntity<>(new ApiResponse(false, "请使用包含用户ID的路径: /api/users/{id}/avatar", null),
-                    HttpStatus.BAD_REQUEST);
-
-            /*
-             * 完整实现示例（需要获取当前用户）：
-             * // 获取当前登录用户ID
-             * String currentUserId = getCurrentUserId(request); // 需要实现此方法
-             * 
-             * // 调用现有的上传逻辑
-             * return uploadAvatar(currentUserId, file, request);
-             */
+            // 直接调用uploadAvatar方法，传入null作为id参数
+            // 这样可以重用相同的临时头像上传逻辑
+            return uploadAvatar(null, file, request);
         } catch (Exception e) {
             e.printStackTrace();
-            return new ResponseEntity<>(new ApiResponse(false, "头像上传失败: " + e.getMessage(), null),
+            return new ResponseEntity<>(new ApiResponse(false, "临时头像上传失败: " + e.getMessage(), null),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    // 保留现有的带用户ID的头像上传接口
+    // 修改后的头像上传接口，支持userId不传值时新建上传头像
     @PostMapping("/{id}/avatar")
     public ResponseEntity<?> uploadAvatar(
-            @PathVariable String id,
+            @PathVariable(required = false) String id,
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
         try {
-            // 获取用户信息
-            User user = userService.getUserById(id);
-            if (user == null) {
-                return new ResponseEntity<>(new ApiResponse(false, "用户不存在", null), HttpStatus.NOT_FOUND);
-            }
-
-            // 删除旧头像（如果存在且不是默认头像）
-            if (user.getAvatar() != null && !user.getAvatar().equals(FileUploadUtil.DEFAULT_AVATAR_URL)) {
-                // 提取文件名进行删除
-                String oldAvatarName = user.getAvatar().substring(user.getAvatar().lastIndexOf("/") + 1);
-                String oldAvatarPath = uploadDir + File.separator + oldAvatarName;
-                FileUploadUtil.deleteFile(oldAvatarPath);
-            }
-
             // 保存新头像
             String fileName = FileUploadUtil.saveFile(file, uploadDir);
-
+            
             // 构建头像访问URL
-            String baseUrl = request.getScheme() + "://" + request.getServerName() + ":" +
-                    request.getServerPort() + request.getContextPath();
-            String avatarUrl = baseUrl + accessUrl + "/" + fileName;
+            String baseUrl = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort() + request.getContextPath();
+            // 确保accessUrl和fileName之间有斜杠
+            String avatarUrl = baseUrl + accessUrl + (accessUrl.endsWith("/") ? "" : "/") + fileName;
+            
+            // 创建响应数据
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("avatarFileName", fileName);
+            responseData.put("avatarUrl", avatarUrl);
+            
+            // 如果提供了有效的用户ID（不是null且不是字符串"null"），则关联到现有用户
+            if (id != null && !id.isEmpty() && !"null".equals(id)) {
+                User user = userService.getUserById(id);
+                if (user == null) {
+                    return new ResponseEntity<>(new ApiResponse(false, "用户不存在", null), HttpStatus.NOT_FOUND);
+                }
 
-            // 更新用户头像URL
-            user.setAvatar(avatarUrl);
-            User updatedUser = userService.updateUser(user);
+                // 删除旧头像（如果存在且不是默认头像）
+                if (user.getAvatar() != null && !user.getAvatar().equals(FileUploadUtil.DEFAULT_AVATAR_URL)) {
+                    // 提取文件名进行删除
+                    String oldAvatarName = user.getAvatar().substring(user.getAvatar().lastIndexOf("/") + 1);
+                    String oldAvatarPath = uploadDir + File.separator + oldAvatarName;
+                    FileUploadUtil.deleteFile(oldAvatarPath);
+                }
 
-            return new ResponseEntity<>(new ApiResponse(true, "头像上传成功", updatedUser), HttpStatus.OK);
+                // 只存储文件名而非完整URL，减少数据库存储压力
+                user.setAvatar(fileName);
+                User updatedUser = userService.updateUser(user);
+                responseData.put("user", updatedUser);
+                return new ResponseEntity<>(new ApiResponse(true, "头像上传成功并关联到用户", responseData), HttpStatus.OK);
+            } else {
+                // 如果没有提供用户ID，则返回临时头像信息
+                // 前端可以在创建用户时使用这个临时头像
+                return new ResponseEntity<>(new ApiResponse(true, "临时头像上传成功", responseData), HttpStatus.CREATED);
+            }
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(new ApiResponse(false, e.getMessage(), null), HttpStatus.BAD_REQUEST);
         } catch (IOException e) {
