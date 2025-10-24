@@ -9,9 +9,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ProjectProgressScheduler {
-
     private static final Logger logger = LoggerFactory.getLogger(ProjectProgressScheduler.class);
-
     @Autowired
     private ProjectService projectService;
 
@@ -19,7 +17,7 @@ public class ProjectProgressScheduler {
     @Scheduled(cron = "0 0 2 * * ?")
     public void updateAllProjectsProgress() {
         logger.info("Starting scheduled update of all projects progress");
-        
+
         // 实际实现中，这里应该获取所有活跃的项目并更新它们的进度
         // 简化处理，这里只是记录日志
         logger.info("Scheduled update of all projects progress completed");
@@ -29,7 +27,7 @@ public class ProjectProgressScheduler {
     @Scheduled(cron = "0 0 * * * ?")
     public void updateCriticalProjectsProgress() {
         logger.info("Starting scheduled update of critical projects progress");
-        
+
         // 实际实现中，这里应该获取即将到期或进度落后的项目并更新它们的进度
         // 简化处理，这里只是记录日志
         logger.info("Scheduled update of critical projects progress completed");

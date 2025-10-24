@@ -35,14 +35,16 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<User> findUsersByFilter(UserFilter filter) {
+        // 默认只查询活跃用户，除非明确指定了isActive条件
+        if (filter.getIsActive() == null) {
+            filter.setIsActive(true);
+        }
         // 调用Repository层的统一筛选方法
         List<User> users = userRepository.findByFilter(filter);
         // 将结果设置到filter对象的users字段中
         filter.setUsers(users);
         return users;
     }
-
-
 
     @Override
     public User createUser(User user) {
@@ -131,7 +133,10 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteUser(String id) {
         User user = getUserById(id);
-        userRepository.delete(user); // 使用delete方法进行物理删除
+        // 使用软删除替代物理删除，避免外键约束错误
+        user.setIsActive(false);
+        user.setUpdatedTime(LocalDateTime.now());
+        userRepository.save(user);
     }
 
     @Override
@@ -140,11 +145,13 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("找不到ID为" + id + "的用户"));
     }
 
-
-
     @Override
     public Page<User> findUsersByPage(Pageable pageable) {
-        return userRepository.findAll(pageable);
+        // 使用Specification确保只查询活跃用户
+        Specification<User> spec = (root, query, criteriaBuilder) -> {
+            return criteriaBuilder.equal(root.get("isActive"), true);
+        };
+        return userRepository.findAll(spec, pageable);
     }
 
     @Override
@@ -195,9 +202,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-
-
-    // @Override
+    // @
     // public List<User> findActiveUsers() {
     // // 复用统一的筛选方法
     // UserFilter filter = new UserFilter();

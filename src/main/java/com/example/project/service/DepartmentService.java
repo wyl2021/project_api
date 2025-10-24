@@ -12,7 +12,6 @@ public interface DepartmentService {
     // 更新部门
     // Department updateDepartment(String id, Department department, String
     // updatedBy);
-
     // 删除部门
     void deleteDepartment(String id);
 
